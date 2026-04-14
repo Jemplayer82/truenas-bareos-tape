@@ -1,0 +1,26 @@
+app_version: "23.0.4"
+categories:
+  - backup
+date_added: "2026-04-14"
+description: "Bareos backup engine for TrueNAS native tape archival integration. Provides Director, Storage Daemon, File Daemon, and PostgreSQL catalog. Pairs with the native TrueNAS Data Protection > Tape Backup UI."
+home: "https://www.bareos.org"
+icon: "https://raw.githubusercontent.com/Jemplayer82/truenas-bareos-tape/main/app/icon.png"
+keywords:
+  - backup
+  - tape
+  - archive
+  - bareos
+  - LTO
+lib_version: "2.3.2"
+maintainers:
+  - email: ""
+    name: "Jemplayer82"
+    url: "https://github.com/Jemplayer82/truenas-bareos-tape"
+min_scale_version: "24.10.2.2"
+name: bareos-tape
+sources:
+  - "https://github.com/bareos/bareos"
+  - "https://github.com/Jemplayer82/truenas-bareos-tape"
+title: "Bareos Tape Archival"
+train: community
+version: "1.0.0"

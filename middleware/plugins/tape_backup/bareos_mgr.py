@@ -1,4 +1,11 @@
-import json
+"""
+TapeBackupBareosService
+-----------------------
+Manages Bareos configuration generation and provides connection parameters
+for python-bareos.  Container lifecycle is handled by the TrueNAS
+bareos-tape app (docker-compose).  This service does NOT start or pull
+containers — install the TrueNAS app first, then run install.sh.
+"""
 import os
 import secrets
 import subprocess
@@ -7,7 +14,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from middlewared.service import CallError, Service, private
+from middlewared.service import CallError, Service, job, private
 
 BAREOS_CONFIG_DIR = '/mnt/bareos/config'
 BAREOS_DATA_DIR = '/mnt/bareos/data'
@@ -15,22 +22,13 @@ BAREOS_LOG_DIR = '/mnt/bareos/logs'
 
 TEMPLATE_DIR = Path(__file__).parent / 'config_templates'
 
-# Official Bareos Docker images
-IMAGES = {
-    'director': 'bareos/bareos-director:latest',
-    'storage':  'bareos/bareos-storage:latest',
-    'filedaemon': 'bareos/bareos-client:latest',
-    'database': 'postgres:16-bookworm',
-}
-
+# Container names — must match the TrueNAS app docker-compose template
 CONTAINER_NAMES = {
-    'director':  'bareos-dir',
-    'storage':   'bareos-sd',
+    'director':   'bareos-dir',
+    'storage':    'bareos-sd',
     'filedaemon': 'bareos-fd',
-    'database':  'bareos-db',
+    'database':   'bareos-db',
 }
-
-NETWORK_NAME = 'bareos-net'
 
 LTO_CAPACITY = {
     'LTO-5': '1500G',
@@ -42,11 +40,7 @@ LTO_CAPACITY = {
 
 
 def _run(cmd, check=True, capture=True):
-    """Run a shell command, return CompletedProcess."""
-    return subprocess.run(
-        cmd, check=check,
-        capture_output=capture, text=True,
-    )
+    return subprocess.run(cmd, check=check, capture_output=capture, text=True)
 
 
 class TapeBackupBareosService(Service):
@@ -61,7 +55,7 @@ class TapeBackupBareosService(Service):
         self._jinja_env = None
 
     # ------------------------------------------------------------------ #
-    #  Jinja2 / config generation
+    #  Jinja2
     # ------------------------------------------------------------------ #
 
     @private
@@ -78,7 +72,7 @@ class TapeBackupBareosService(Service):
         return self.jinja_env().get_template(template_name).render(context)
 
     # ------------------------------------------------------------------ #
-    #  Config persistence (TrueNAS SQLite)
+    #  Config persistence
     # ------------------------------------------------------------------ #
 
     @private
@@ -108,12 +102,8 @@ class TapeBackupBareosService(Service):
         return config
 
     # ------------------------------------------------------------------ #
-    #  Docker helpers
+    #  Container status (read-only — app manages lifecycle)
     # ------------------------------------------------------------------ #
-
-    @private
-    def _docker(self, *args, check=True):
-        return _run(['docker'] + list(args), check=check)
 
     @private
     def _container_running(self, name):
@@ -123,35 +113,8 @@ class TapeBackupBareosService(Service):
         )
         return result.returncode == 0 and result.stdout.strip() == 'true'
 
-    @private
-    def _container_exists(self, name):
-        result = _run(
-            ['docker', 'inspect', '--format', '{{.Name}}', name],
-            check=False,
-        )
-        return result.returncode == 0
-
-    @private
-    def _ensure_network(self):
-        result = _run(
-            ['docker', 'network', 'inspect', NETWORK_NAME],
-            check=False,
-        )
-        if result.returncode != 0:
-            _run(['docker', 'network', 'create', NETWORK_NAME])
-
-    @private
-    def _stop_container(self, name):
-        if self._container_running(name):
-            _run(['docker', 'stop', '-t', '30', name], check=False)
-        if self._container_exists(name):
-            _run(['docker', 'rm', name], check=False)
-
-    # ------------------------------------------------------------------ #
-    #  Status / start / stop
-    # ------------------------------------------------------------------ #
-
     async def status(self):
+        """Return running state of each Bareos container managed by the app."""
         result = {}
         for role, cname in CONTAINER_NAMES.items():
             running = self._container_running(cname)
@@ -162,68 +125,48 @@ class TapeBackupBareosService(Service):
             }
         return result
 
-    async def start(self):
-        config = await self.get_config()
-        drives = await self.middleware.call('tape_backup.drive.query')
-        await self._start_containers(config, drives)
-        return await self.status()
-
-    async def stop(self):
-        for cname in reversed(list(CONTAINER_NAMES.values())):
-            self._stop_container(cname)
-        return await self.status()
-
-    async def restart(self):
-        await self.stop()
-        return await self.start()
-
     # ------------------------------------------------------------------ #
-    #  First-time setup
+    #  First-time setup (config generation + DB init)
     # ------------------------------------------------------------------ #
 
+    @job(lock='bareos_setup')
     async def setup(self, job):
-        job.set_progress(0, 'Checking Docker availability')
-        try:
-            _run(['docker', 'info'])
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            raise CallError('Docker is not available on this system')
+        """
+        Generate Bareos config files and initialise the catalog DB.
+        Requires the bareos-tape TrueNAS app to already be running.
+        """
+        job.set_progress(0, 'Checking Bareos containers')
+        for role, cname in CONTAINER_NAMES.items():
+            if not self._container_running(cname):
+                raise CallError(
+                    f'Container {cname!r} is not running. '
+                    'Install and start the bareos-tape TrueNAS app first.'
+                )
 
-        job.set_progress(5, 'Pulling Bareos Docker images')
-        await self._pull_images(job)
-
-        job.set_progress(30, 'Generating passwords')
+        job.set_progress(10, 'Generating passwords')
         config = await self.ensure_passwords()
 
-        job.set_progress(35, 'Creating config directories')
+        job.set_progress(20, 'Creating config directories')
         self._create_dirs()
 
-        job.set_progress(40, 'Generating Bareos configuration files')
+        job.set_progress(30, 'Generating Bareos configuration files')
         drives = await self.middleware.call('tape_backup.drive.query')
         jobs_list = await self.middleware.call('tape_backup.job.query')
         await self.generate_config(config, drives, jobs_list)
 
-        job.set_progress(55, 'Starting containers')
-        await self._start_containers(config, drives)
-
-        job.set_progress(75, 'Waiting for Director to be ready')
+        job.set_progress(60, 'Waiting for Director to accept connections')
         self._wait_for_director()
 
-        job.set_progress(85, 'Initializing Bareos database')
+        job.set_progress(75, 'Initialising Bareos catalog database')
         self._init_database()
 
         job.set_progress(100, 'Bareos setup complete')
+        await self.save_config({**config, 'initialized': True})
         return True
 
     # ------------------------------------------------------------------ #
-    #  Container lifecycle internals
+    #  Config file generation
     # ------------------------------------------------------------------ #
-
-    @private
-    async def _pull_images(self, job=None):
-        for role, image in IMAGES.items():
-            if job:
-                job.set_progress(5, f'Pulling {image}')
-            _run(['docker', 'pull', image])
 
     @private
     def _create_dirs(self):
@@ -242,139 +185,6 @@ class TapeBackupBareosService(Service):
 
         for sub in ('director', 'client', 'messages'):
             os.makedirs(f'{BAREOS_CONFIG_DIR}/bareos-fd.d/{sub}', exist_ok=True)
-
-    @private
-    async def _start_containers(self, config, drives):
-        self._ensure_network()
-
-        db_password = config.get('db_password', '')
-
-        # --- PostgreSQL ---
-        if not self._container_running(CONTAINER_NAMES['database']):
-            self._stop_container(CONTAINER_NAMES['database'])
-            _run([
-                'docker', 'run', '-d',
-                '--name', CONTAINER_NAMES['database'],
-                '--network', NETWORK_NAME,
-                '--restart', 'unless-stopped',
-                '-e', f'POSTGRES_USER=bareos',
-                '-e', f'POSTGRES_PASSWORD={db_password}',
-                '-e', f'POSTGRES_DB=bareos',
-                '-v', f'{BAREOS_DATA_DIR}/postgres:/var/lib/postgresql/data',
-                IMAGES['database'],
-            ])
-            time.sleep(5)
-
-        hostname = (await self.middleware.call('system.hostname'))
-
-        # --- Director ---
-        if not self._container_running(CONTAINER_NAMES['director']):
-            self._stop_container(CONTAINER_NAMES['director'])
-            _run([
-                'docker', 'run', '-d',
-                '--name', CONTAINER_NAMES['director'],
-                '--network', NETWORK_NAME,
-                '--restart', 'unless-stopped',
-                '-p', '9101:9101',
-                '-e', f'DB_HOST={CONTAINER_NAMES["database"]}',
-                '-e', f'DB_PASSWORD={db_password}',
-                '-e', f'BAREOS_SD_PASSWORD={config.get("sd_password", "")}',
-                '-e', f'BAREOS_FD_PASSWORD={config.get("fd_password", "")}',
-                '-e', f'BAREOS_WEBUI_PASSWORD={config.get("console_password", "")}',
-                '-v', f'{BAREOS_CONFIG_DIR}/bareos-dir.d:/etc/bareos/bareos-dir.d:ro',
-                '-v', f'{BAREOS_DATA_DIR}/director:/var/lib/bareos',
-                IMAGES['director'],
-            ])
-
-        # --- Storage Daemon (with tape device passthrough) ---
-        if not self._container_running(CONTAINER_NAMES['storage']):
-            self._stop_container(CONTAINER_NAMES['storage'])
-            sd_cmd = [
-                'docker', 'run', '-d',
-                '--name', CONTAINER_NAMES['storage'],
-                '--network', NETWORK_NAME,
-                '--restart', 'unless-stopped',
-                '-p', '9103:9103',
-                '--cap-add', 'SYS_RAWIO',
-            ]
-            # Pass through tape drives
-            tape_drives = [d for d in drives if d['type'] == 'tape']
-            for drive in tape_drives:
-                dev = drive.get('nst_device') or drive.get('device')
-                if dev and os.path.exists(dev):
-                    sd_cmd += ['--device', f'{dev}:{dev}']
-            # Pass through changers
-            changer_drives = [d for d in drives if d['type'] == 'changer']
-            for drive in changer_drives:
-                dev = drive.get('sg_device') or drive.get('device')
-                if dev and os.path.exists(dev):
-                    sd_cmd += ['--device', f'{dev}:{dev}']
-
-            sd_cmd += [
-                '-e', f'BAREOS_SD_PASSWORD={config.get("sd_password", "")}',
-                '-e', f'BAREOS_DIR_NAME={config.get("dir_name", "bareos-dir")}',
-                '-v', f'{BAREOS_CONFIG_DIR}/bareos-sd.d:/etc/bareos/bareos-sd.d:ro',
-                '-v', f'{BAREOS_DATA_DIR}/storage:/var/lib/bareos/storage',
-                IMAGES['storage'],
-            ]
-            _run(sd_cmd)
-
-        # --- File Daemon ---
-        if not self._container_running(CONTAINER_NAMES['filedaemon']):
-            self._stop_container(CONTAINER_NAMES['filedaemon'])
-            fd_cmd = [
-                'docker', 'run', '-d',
-                '--name', CONTAINER_NAMES['filedaemon'],
-                '--network', NETWORK_NAME,
-                '--restart', 'unless-stopped',
-                '-p', '9102:9102',
-                '-e', f'BAREOS_FD_PASSWORD={config.get("fd_password", "")}',
-                '-e', f'BAREOS_DIR_NAME={config.get("dir_name", "bareos-dir")}',
-                '-v', f'{BAREOS_CONFIG_DIR}/bareos-fd.d:/etc/bareos/bareos-fd.d:ro',
-            ]
-            # Mount backup source paths
-            jobs_list = await self.middleware.call('tape_backup.job.query')
-            mounted = set()
-            for job_def in jobs_list:
-                for src in job_def.get('source_paths', []):
-                    if src not in mounted and os.path.exists(src):
-                        fd_cmd += ['-v', f'{src}:{src}:ro']
-                        mounted.add(src)
-
-            fd_cmd.append(IMAGES['filedaemon'])
-            _run(fd_cmd)
-
-    @private
-    def _wait_for_director(self, timeout=60):
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            result = _run(
-                ['docker', 'exec', CONTAINER_NAMES['director'],
-                 'bareos-dir', '-t'],
-                check=False,
-            )
-            if result.returncode == 0:
-                return
-            time.sleep(3)
-        self.logger.warning('Timed out waiting for Bareos Director to be ready')
-
-    @private
-    def _init_database(self):
-        scripts = (
-            'create_bareos_database',
-            'make_bareos_tables',
-            'grant_bareos_privileges',
-        )
-        for script in scripts:
-            _run(
-                ['docker', 'exec', CONTAINER_NAMES['director'],
-                 f'/usr/lib/bareos/scripts/{script}', 'postgresql'],
-                check=False,
-            )
-
-    # ------------------------------------------------------------------ #
-    #  Config file generation
-    # ------------------------------------------------------------------ #
 
     @private
     async def generate_config(self, config=None, drives=None, jobs_list=None):
@@ -414,19 +224,19 @@ class TapeBackupBareosService(Service):
         self._create_dirs()
 
         mappings = [
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/director/bareos-dir.conf', 'bareos-dir.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/catalog/MyCatalog.conf', 'catalog.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/storage/TapeStorage.conf', 'storage.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/client/bareos-fd.conf', 'client.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/console/admin.conf', 'console.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/profile/webui-admin.conf', 'profile.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/director/bareos-dir.conf',   'bareos-dir.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/catalog/MyCatalog.conf',     'catalog.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/storage/TapeStorage.conf',   'storage.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/client/bareos-fd.conf',      'client.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/console/admin.conf',         'console.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/profile/webui-admin.conf',   'profile.conf.j2'),
             (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/schedule/TapeSchedule.conf', 'schedule.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/messages/Standard.conf', 'messages.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/job/RestoreFiles.conf', 'restore_job.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-sd.d/director/bareos-dir.conf', 'bareos-sd.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-sd.d/storage/bareos-sd.conf', 'sd-storage.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-fd.d/director/bareos-dir.conf', 'bareos-fd.conf.j2'),
-            (f'{BAREOS_CONFIG_DIR}/bareos-fd.d/client/myself.conf', 'fd-client.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/messages/Standard.conf',     'messages.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-dir.d/job/RestoreFiles.conf',      'restore_job.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-sd.d/director/bareos-dir.conf',    'bareos-sd.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-sd.d/storage/bareos-sd.conf',      'sd-storage.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-fd.d/director/bareos-dir.conf',    'bareos-fd.conf.j2'),
+            (f'{BAREOS_CONFIG_DIR}/bareos-fd.d/client/myself.conf',          'fd-client.conf.j2'),
         ]
 
         for dest, tmpl in mappings:
@@ -469,6 +279,33 @@ class TapeBackupBareosService(Service):
         with open(dest_path, 'w') as f:
             f.write(content)
         os.chmod(dest_path, 0o640)
+
+    # ------------------------------------------------------------------ #
+    #  DB initialisation (run once after first app start)
+    # ------------------------------------------------------------------ #
+
+    @private
+    def _wait_for_director(self, timeout=120):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            result = _run(
+                ['docker', 'exec', CONTAINER_NAMES['director'],
+                 'bareos-dir', '-t'],
+                check=False,
+            )
+            if result.returncode == 0:
+                return
+            time.sleep(5)
+        self.logger.warning('Timed out waiting for Bareos Director')
+
+    @private
+    def _init_database(self):
+        for script in ('create_bareos_database', 'make_bareos_tables', 'grant_bareos_privileges'):
+            _run(
+                ['docker', 'exec', CONTAINER_NAMES['director'],
+                 f'/usr/lib/bareos/scripts/{script}', 'postgresql'],
+                check=False,
+            )
 
     # ------------------------------------------------------------------ #
     #  python-bareos connection params

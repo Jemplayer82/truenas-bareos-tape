@@ -1,0 +1,153 @@
+groups:
+  - name: "Tape Device"
+    description: "Tape drive device configuration"
+  - name: "Network"
+    description: "Port configuration"
+  - name: "Storage"
+    description: "Persistent storage for catalog database and configuration"
+  - name: "Credentials"
+    description: "Bareos daemon passwords"
+
+questions:
+  # ---------- Tape Device ----------
+  - variable: tape
+    group: "Tape Device"
+    schema:
+      type: dict
+      attrs:
+        - variable: nst_device
+          label: "Tape Drive Device (no-rewind)"
+          description: "Path to the no-rewind SCSI tape device. Find it with: ls /dev/nst*"
+          schema:
+            type: string
+            default: "/dev/nst0"
+            required: true
+
+        - variable: media_type
+          label: "Media Type"
+          schema:
+            type: string
+            default: "LTO-8"
+            enum:
+              - value: "LTO-5"
+                description: "LTO-5 (1.5 TB native)"
+              - value: "LTO-6"
+                description: "LTO-6 (2.5 TB native)"
+              - value: "LTO-7"
+                description: "LTO-7 (6 TB native)"
+              - value: "LTO-8"
+                description: "LTO-8 (12 TB native)"
+              - value: "LTO-9"
+                description: "LTO-9 (18 TB native)"
+
+        - variable: use_autochanger
+          label: "Enable Autochanger / Tape Library"
+          schema:
+            type: boolean
+            default: false
+            show_subquestions_if: true
+            subquestions:
+              - variable: changer_device
+                label: "Changer Device"
+                description: "SCSI generic device for the tape changer (e.g. /dev/sg0)"
+                schema:
+                  type: string
+                  default: "/dev/sg0"
+              - variable: changer_slots
+                label: "Number of Slots"
+                schema:
+                  type: int
+                  default: 24
+                  min: 1
+
+  # ---------- Network ----------
+  - variable: network
+    group: "Network"
+    schema:
+      type: dict
+      attrs:
+        - variable: dir_port
+          label: "Director Port"
+          description: "Must match what the TrueNAS middleware plugin expects (default 9101)"
+          schema:
+            type: int
+            default: 9101
+            min: 1024
+            max: 65535
+
+        - variable: sd_port
+          label: "Storage Daemon Port"
+          schema:
+            type: int
+            default: 9103
+            min: 1024
+            max: 65535
+
+        - variable: fd_port
+          label: "File Daemon Port"
+          schema:
+            type: int
+            default: 9102
+            min: 1024
+            max: 65535
+
+  # ---------- Storage ----------
+  - variable: storage
+    group: "Storage"
+    schema:
+      type: dict
+      attrs:
+        - variable: postgres_data
+          label: "PostgreSQL Data (Bareos Catalog)"
+          description: "Where to store the Bareos catalog database. Use a dataset on a redundant pool."
+          schema:
+            type: hostpath
+            required: true
+
+        - variable: bareos_config
+          label: "Bareos Configuration"
+          description: "Where to store generated Bareos config files"
+          schema:
+            type: hostpath
+            required: true
+
+        - variable: bareos_storage
+          label: "Tape Spool / Working Directory"
+          schema:
+            type: hostpath
+            required: true
+
+  # ---------- Credentials ----------
+  - variable: credentials
+    group: "Credentials"
+    schema:
+      type: dict
+      attrs:
+        - variable: dir_password
+          label: "Director Password"
+          description: "Leave blank to auto-generate"
+          schema:
+            type: string
+            default: ""
+            private: true
+
+        - variable: sd_password
+          label: "Storage Daemon Password"
+          schema:
+            type: string
+            default: ""
+            private: true
+
+        - variable: fd_password
+          label: "File Daemon Password"
+          schema:
+            type: string
+            default: ""
+            private: true
+
+        - variable: db_password
+          label: "PostgreSQL Password"
+          schema:
+            type: string
+            default: ""
+            private: true

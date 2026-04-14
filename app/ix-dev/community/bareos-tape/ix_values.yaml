@@ -1,0 +1,22 @@
+images:
+  director:
+    repository: barcus/bareos-director
+    tag: "23-ubuntu"
+  storage:
+    repository: barcus/bareos-storage
+    tag: "23-ubuntu"
+  filedaemon:
+    repository: barcus/bareos-client
+    tag: "23-ubuntu"
+  postgres:
+    repository: postgres
+    tag: "16-bookworm"
+
+consts:
+  dir_container: "bareos-dir"
+  sd_container: "bareos-sd"
+  fd_container: "bareos-fd"
+  db_container: "bareos-db"
+  dir_port: 9101
+  sd_port: 9103
+  fd_port: 9102

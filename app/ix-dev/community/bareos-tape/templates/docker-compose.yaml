@@ -1,0 +1,101 @@
+{% set tape = values.tape %}
+{% set net = values.network %}
+{% set stor = values.storage %}
+{% set creds = values.credentials %}
+
+{% set dir_pw   = creds.dir_password   if creds.dir_password   else ix_lib.base.utils.secure_string(32) %}
+{% set sd_pw    = creds.sd_password    if creds.sd_password    else ix_lib.base.utils.secure_string(32) %}
+{% set fd_pw    = creds.fd_password    if creds.fd_password    else ix_lib.base.utils.secure_string(32) %}
+{% set db_pw    = creds.db_password    if creds.db_password    else ix_lib.base.utils.secure_string(32) %}
+
+name: bareos-tape
+
+services:
+
+  # ── PostgreSQL catalog database ──────────────────────────────────────────
+  bareos-db:
+    image: postgres:16-bookworm
+    container_name: bareos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bareos
+      POSTGRES_PASSWORD: "{{ db_pw }}"
+      POSTGRES_DB: bareos
+    volumes:
+      - "{{ stor.postgres_data }}:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bareos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bareos-net
+
+  # ── Bareos Director ───────────────────────────────────────────────────────
+  bareos-dir:
+    image: barcus/bareos-director:23-ubuntu
+    container_name: bareos-dir
+    restart: unless-stopped
+    depends_on:
+      bareos-db:
+        condition: service_healthy
+    ports:
+      - "{{ net.dir_port }}:9101"
+    environment:
+      DB_HOST: bareos-db
+      DB_PORT: "5432"
+      DB_NAME: bareos
+      DB_USER: bareos
+      DB_PASSWORD: "{{ db_pw }}"
+      BAREOS_SD_PASSWORD: "{{ sd_pw }}"
+      BAREOS_FD_PASSWORD: "{{ fd_pw }}"
+      BAREOS_WEBUI_PASSWORD: "{{ dir_pw }}"
+    volumes:
+      - "{{ stor.bareos_config }}:/etc/bareos:rw"
+      - "{{ stor.bareos_storage }}:/var/lib/bareos:rw"
+    networks:
+      - bareos-net
+
+  # ── Bareos Storage Daemon (tape access) ───────────────────────────────────
+  bareos-sd:
+    image: barcus/bareos-storage:23-ubuntu
+    container_name: bareos-sd
+    restart: unless-stopped
+    depends_on:
+      - bareos-dir
+    ports:
+      - "{{ net.sd_port }}:9103"
+    cap_add:
+      - SYS_RAWIO
+    devices:
+      - "{{ tape.nst_device }}:{{ tape.nst_device }}"
+      {% if tape.use_autochanger %}
+      - "{{ tape.changer_device }}:{{ tape.changer_device }}"
+      {% endif %}
+    environment:
+      BAREOS_SD_PASSWORD: "{{ sd_pw }}"
+    volumes:
+      - "{{ stor.bareos_config }}:/etc/bareos:ro"
+      - "{{ stor.bareos_storage }}:/var/lib/bareos/storage:rw"
+    networks:
+      - bareos-net
+
+  # ── Bareos File Daemon ─────────────────────────────────────────────────────
+  bareos-fd:
+    image: barcus/bareos-client:23-ubuntu
+    container_name: bareos-fd
+    restart: unless-stopped
+    depends_on:
+      - bareos-dir
+    ports:
+      - "{{ net.fd_port }}:9102"
+    environment:
+      BAREOS_FD_PASSWORD: "{{ fd_pw }}"
+    volumes:
+      - "{{ stor.bareos_config }}:/etc/bareos:ro"
+    networks:
+      - bareos-net
+
+networks:
+  bareos-net:
+    driver: bridge
