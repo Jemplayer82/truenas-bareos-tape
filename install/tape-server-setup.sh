@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Bareos Storage Daemon — Linux Tape Server Setup
 #
-# Run this on the Linux machine that has the FC/SAS tape drive.
+# Run this on the Linux VM (Ubuntu/Debian) that has the FC/SAS tape drive.
+# Installs Bareos Storage Daemon natively via apt — no Docker needed.
 # The Bareos Director runs on TrueNAS and connects here remotely.
 #
 # Usage:
@@ -11,17 +12,16 @@ set -euo pipefail
 #     --dir-address  192.168.1.100 \
 #     --sd-password  "your-sd-password" \
 #     --tape-device  /dev/nst0 \
-#     --media-type   LTO-8 \
-#     --dir-name     bareos-dir
+#     --media-type   LTO-8
 #
-# Autochanger (optional):
+# With autochanger:
+#   sudo bash tape-server-setup.sh \
+#     --dir-address    192.168.1.100 \
+#     --sd-password    "your-sd-password" \
+#     --tape-device    /dev/nst0 \
 #     --changer-device /dev/sg1 \
-#     --changer-slots  24
-
-BAREOS_CONFIG_DIR="/etc/bareos-sd"
-BAREOS_DATA_DIR="/var/lib/bareos-sd"
-SD_CONTAINER="bareos-sd"
-SD_IMAGE="barcus/bareos-storage:23-ubuntu"
+#     --changer-slots  24 \
+#     --media-type     LTO-8
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -58,49 +58,72 @@ done
 
 [[ -z "$DIR_ADDRESS" ]] && error "--dir-address is required (TrueNAS IP)"
 [[ -z "$SD_PASSWORD" ]] && error "--sd-password is required (must match TrueNAS app setting)"
-
-if [[ $EUID -ne 0 ]]; then
-    error "Run as root: sudo bash $0 ..."
-fi
+[[ $EUID -ne 0 ]]       && error "Run as root: sudo bash $0 ..."
 
 log "Bareos Storage Daemon — Tape Server Setup"
 log "=========================================="
 log "Director (TrueNAS): $DIR_ADDRESS"
 log "Tape device:        $TAPE_DEVICE"
 log "Media type:         $MEDIA_TYPE"
+[[ -n "$CHANGER_DEVICE" ]] && log "Changer device:     $CHANGER_DEVICE ($CHANGER_SLOTS slots)"
 
-# ── Check Docker ─────────────────────────────────────────────────────────────
-log "Checking Docker..."
-command -v docker &>/dev/null || error "Docker is not installed."
-docker info &>/dev/null       || error "Docker daemon is not running."
-
-# ── Check tape modules ───────────────────────────────────────────────────────
-log "Checking tape kernel modules..."
-if ! lsmod | grep -q "^st "; then
-    log "Loading st (SCSI tape) module..."
-    modprobe st || warn "Could not load st module — tape device may not appear."
+# ── Check OS ─────────────────────────────────────────────────────────────────
+if ! command -v apt-get &>/dev/null; then
+    error "This script requires a Debian/Ubuntu system with apt."
 fi
 
-if ! lsmod | grep -q "^qla2xxx "; then
-    log "Trying to load qla2xxx (FC HBA) module..."
-    modprobe qla2xxx 2>/dev/null && log "qla2xxx loaded" || warn "Could not load qla2xxx — if using FC, load the HBA driver manually."
-fi
+# ── Load tape kernel modules ──────────────────────────────────────────────────
+log "Loading tape kernel modules..."
+modprobe st       && log "  st loaded"       || warn "  st failed — tape device may not appear"
+modprobe sg       && log "  sg loaded"       || warn "  sg failed"
+modprobe qla2xxx  && log "  qla2xxx loaded"  || warn "  qla2xxx failed — if using FC, check your HBA driver"
 
-# Verify tape device exists
-if [[ ! -e "$TAPE_DEVICE" ]]; then
-    warn "Tape device $TAPE_DEVICE not found."
+# Configure st to load at boot
+echo -e "st\nsg" > /etc/modules-load.d/bareos-tape.conf
+log "st/sg configured to load at boot"
+
+# ── Check tape device ─────────────────────────────────────────────────────────
+if [[ -e "$TAPE_DEVICE" ]]; then
+    log "Tape device found: $TAPE_DEVICE"
+else
+    warn "Tape device $TAPE_DEVICE not found yet."
     warn "Make sure the HBA driver is loaded and the drive is connected."
-    warn "Continuing anyway — fix before starting the container."
+    warn "The service will start anyway — fix the device before first backup."
 fi
 
-# ── Create directories ───────────────────────────────────────────────────────
-log "Creating directories..."
-mkdir -p "$BAREOS_CONFIG_DIR" "$BAREOS_DATA_DIR"
+# ── Install Bareos repository ─────────────────────────────────────────────────
+log "Adding Bareos repository..."
+BAREOS_VERSION="23"
+. /etc/os-release
 
-# ── Generate Storage Daemon config ───────────────────────────────────────────
-log "Generating Bareos SD configuration..."
+apt-get install -y curl gnupg2 lsb-release apt-transport-https ca-certificates
 
-cat > "$BAREOS_CONFIG_DIR/bareos-sd.conf" <<EOF
+# Add Bareos repo key
+curl -fsSL "https://download.bareos.org/bareos/release/${BAREOS_VERSION}/Debian_${VERSION_ID}/Release.key" \
+    | gpg --dearmor -o /usr/share/keyrings/bareos-keyring.gpg
+
+# Add Bareos repo
+echo "deb [signed-by=/usr/share/keyrings/bareos-keyring.gpg] \
+https://download.bareos.org/bareos/release/${BAREOS_VERSION}/Debian_${VERSION_ID}/ /" \
+    > /etc/apt/sources.list.d/bareos.list
+
+apt-get update -q
+
+# ── Install Bareos Storage Daemon + tape tools ────────────────────────────────
+log "Installing Bareos Storage Daemon and tape utilities..."
+apt-get install -y \
+    bareos-storage \
+    bareos-tools \
+    mt-st \
+    mtx \
+    lsscsi \
+    sg3-utils
+
+# ── Generate Storage Daemon config ────────────────────────────────────────────
+log "Writing Bareos SD configuration..."
+
+# bareos-sd.conf
+cat > /etc/bareos/bareos-sd.d/storage/bareos-sd.conf <<EOF
 Storage {
   Name = bareos-sd
   SDPort = ${SD_PORT}
@@ -109,29 +132,36 @@ Storage {
   Plugin Directory = /usr/lib/bareos/plugins
   Maximum Concurrent Jobs = 20
 }
+EOF
 
+# Director resource (authenticates TrueNAS Director)
+cat > /etc/bareos/bareos-sd.d/director/bareos-dir.conf <<EOF
 Director {
   Name = ${DIR_NAME}
   Password = "${SD_PASSWORD}"
 }
+EOF
 
+# Messages
+cat > /etc/bareos/bareos-sd.d/messages/Standard.conf <<EOF
 Messages {
   Name = Standard
   Director = ${DIR_NAME} = all
 }
 EOF
 
-# ── Generate Device config ───────────────────────────────────────────────────
+# ── Generate Device config ────────────────────────────────────────────────────
 if [[ -n "$CHANGER_DEVICE" ]]; then
-    # Autochanger config
-    cat > "$BAREOS_CONFIG_DIR/device-tape.conf" <<EOF
+    log "Writing autochanger device config..."
+    cat > /etc/bareos/bareos-sd.d/autochanger/TapeChanger.conf <<EOF
 Autochanger {
   Name = TapeChanger
   Device = TapeDevice
   Changer Command = "/usr/lib/bareos/scripts/mtx-changer %c %o %S %a %d"
   Changer Device = ${CHANGER_DEVICE}
 }
-
+EOF
+    cat > /etc/bareos/bareos-sd.d/device/TapeDevice.conf <<EOF
 Device {
   Name = TapeDevice
   Media Type = ${MEDIA_TYPE}
@@ -148,10 +178,9 @@ Device {
   Label Media = yes
 }
 EOF
-    log "Autochanger config written (${CHANGER_SLOTS} slots, device: $CHANGER_DEVICE)"
 else
-    # Single drive config
-    cat > "$BAREOS_CONFIG_DIR/device-tape.conf" <<EOF
+    log "Writing single-drive device config..."
+    cat > /etc/bareos/bareos-sd.d/device/TapeDevice.conf <<EOF
 Device {
   Name = TapeDevice
   Media Type = ${MEDIA_TYPE}
@@ -169,72 +198,27 @@ Device {
 EOF
 fi
 
-# ── Pull SD image ────────────────────────────────────────────────────────────
-log "Pulling Bareos Storage Daemon image..."
-docker pull "$SD_IMAGE"
+# Fix permissions
+chown -R bareos:bareos /etc/bareos/bareos-sd.d/
+chmod 640 /etc/bareos/bareos-sd.d/director/bareos-dir.conf  # contains password
 
-# ── Stop existing container ──────────────────────────────────────────────────
-if docker inspect "$SD_CONTAINER" &>/dev/null; then
-    log "Stopping existing bareos-sd container..."
-    docker stop "$SD_CONTAINER" 2>/dev/null || true
-    docker rm "$SD_CONTAINER" 2>/dev/null || true
-fi
+# ── Enable and start service ──────────────────────────────────────────────────
+log "Enabling and starting bareos-sd..."
+systemctl enable bareos-sd
+systemctl restart bareos-sd
+sleep 2
 
-# ── Build docker run command ─────────────────────────────────────────────────
-SD_CMD=(
-    docker run -d
-    --name "$SD_CONTAINER"
-    --restart unless-stopped
-    -p "${SD_PORT}:${SD_PORT}"
-    --cap-add SYS_RAWIO
-)
-
-# Pass through tape device
-if [[ -e "$TAPE_DEVICE" ]]; then
-    SD_CMD+=(--device "${TAPE_DEVICE}:${TAPE_DEVICE}")
+if systemctl is-active --quiet bareos-sd; then
+    log "bareos-sd is running"
 else
-    warn "Skipping --device (tape device not found yet)"
+    warn "bareos-sd failed to start — check logs: journalctl -u bareos-sd -n 30"
 fi
 
-# Pass through changer device if set
-if [[ -n "$CHANGER_DEVICE" && -e "$CHANGER_DEVICE" ]]; then
-    SD_CMD+=(--device "${CHANGER_DEVICE}:${CHANGER_DEVICE}")
+# ── Open firewall port ────────────────────────────────────────────────────────
+if command -v ufw &>/dev/null && ufw status | grep -q "Status: active"; then
+    log "Opening port ${SD_PORT} in ufw..."
+    ufw allow "${SD_PORT}/tcp" comment "Bareos Storage Daemon"
 fi
-
-SD_CMD+=(
-    -e "BAREOS_SD_PASSWORD=${SD_PASSWORD}"
-    -v "${BAREOS_CONFIG_DIR}:/etc/bareos:ro"
-    -v "${BAREOS_DATA_DIR}:/var/lib/bareos/storage:rw"
-    "$SD_IMAGE"
-)
-
-# ── Start container ──────────────────────────────────────────────────────────
-log "Starting bareos-sd container..."
-"${SD_CMD[@]}"
-
-# ── Make st load on boot ─────────────────────────────────────────────────────
-log "Configuring st module to load at boot..."
-echo "st" > /etc/modules-load.d/bareos-st.conf
-
-# ── Persist container across reboots ─────────────────────────────────────────
-cat > /etc/systemd/system/bareos-sd-docker.service <<EOF
-[Unit]
-Description=Bareos Storage Daemon (Docker)
-After=docker.service
-Requires=docker.service
-
-[Service]
-Restart=always
-ExecStart=/usr/bin/docker start -a ${SD_CONTAINER}
-ExecStop=/usr/bin/docker stop ${SD_CONTAINER}
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable bareos-sd-docker.service
-log "systemd service enabled (bareos-sd-docker)"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
@@ -242,15 +226,14 @@ log "============================================"
 log "  Tape Server Setup Complete"
 log "============================================"
 echo ""
-echo "  Storage Daemon is running:"
-echo "    docker ps | grep bareos-sd"
-echo "    docker logs bareos-sd"
+echo "  Service status:    systemctl status bareos-sd"
+echo "  Logs:              journalctl -u bareos-sd -f"
+echo "  Tape device:       ls -la $TAPE_DEVICE"
+echo "  Test tape:         mt -f $TAPE_DEVICE status"
 echo ""
 echo "  Now on TrueNAS, run:"
 echo "    midclt call tape_backup.bareos.setup"
 echo ""
-echo "  Config files: $BAREOS_CONFIG_DIR"
-echo "  Data:         $BAREOS_DATA_DIR"
-echo ""
-echo "  To update: re-run this script with the same arguments."
+echo "  Make sure port ${SD_PORT} is reachable from TrueNAS:"
+echo "    nc -zv $DIR_ADDRESS ${SD_PORT}"
 echo ""
