@@ -1,0 +1,127 @@
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.dashboard-card {
+  &.full-width {
+    grid-column: 1 / -1;
+  }
+}
+
+.service-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.service-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .service-running {
+    color: var(--green);
+  }
+
+  .service-stopped {
+    color: var(--red);
+  }
+
+  .service-name {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  .service-state {
+    opacity: 0.7;
+    font-size: 0.9em;
+  }
+}
+
+.drive-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+
+  .drive-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .drive-model {
+    font-weight: 500;
+  }
+
+  .drive-device {
+    font-size: 0.85em;
+    opacity: 0.7;
+    font-family: monospace;
+  }
+}
+
+.pool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.pool-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+
+  .pool-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .pool-volumes,
+  .pool-size {
+    font-size: 0.85em;
+    opacity: 0.7;
+  }
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  button {
+    justify-content: flex-start;
+
+    mat-icon {
+      margin-right: 8px;
+    }
+  }
+}
+
+.jobs-table {
+  width: 100%;
+}
+
+.no-data {
+  opacity: 0.5;
+  text-align: center;
+  padding: 16px 0;
+}
+
+.status-success { color: var(--green); }
+.status-running { color: var(--primary); }
+.status-error { color: var(--red); }
+.status-cancelled { color: var(--orange); }
+.status-warning { color: var(--yellow); }
+.status-unknown { color: var(--fg2); }

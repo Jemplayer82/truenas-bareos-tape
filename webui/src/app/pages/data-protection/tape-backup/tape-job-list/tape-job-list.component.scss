@@ -1,0 +1,59 @@
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 64px 16px;
+  text-align: center;
+
+  .empty-icon {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    opacity: 0.3;
+    margin-bottom: 16px;
+  }
+
+  h3 { margin-bottom: 8px; }
+  p { opacity: 0.6; margin-bottom: 24px; }
+}
+
+.job-table {
+  width: 100%;
+}
+
+.job-name {
+  font-weight: 500;
+  display: block;
+}
+
+.job-desc {
+  font-size: 0.85em;
+  opacity: 0.6;
+  display: block;
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.enabled-icon {
+  color: var(--green);
+  cursor: pointer;
+}
+
+.disabled-icon {
+  color: var(--fg2);
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.delete-action {
+  color: var(--red);
+}

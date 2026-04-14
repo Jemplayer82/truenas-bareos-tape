@@ -1,0 +1,97 @@
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.pool-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.pool-card {
+  .pool-stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 8px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+
+    .stat-value {
+      font-size: 1.2em;
+      font-weight: 600;
+    }
+
+    .stat-label {
+      font-size: 0.8em;
+      opacity: 0.6;
+    }
+  }
+
+  .pool-flags {
+    display: flex;
+    gap: 8px;
+
+    .flag {
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: var(--bg-hover);
+      opacity: 0.7;
+    }
+  }
+}
+
+.label-card {
+  margin: 16px;
+}
+
+.label-form {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  mat-form-field {
+    min-width: 200px;
+  }
+}
+
+.volume-card {
+  margin: 16px;
+}
+
+.volume-table {
+  width: 100%;
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.volume-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.status-append { background: rgba(76, 175, 80, 0.15); color: var(--green); }
+.status-full { background: rgba(33, 150, 243, 0.15); color: var(--primary); }
+.status-used { background: rgba(158, 158, 158, 0.15); color: var(--fg2); }
+.status-recycle { background: rgba(255, 152, 0, 0.15); color: var(--orange); }
+.status-purged { background: rgba(156, 39, 176, 0.15); color: #9c27b0; }
+.status-error { background: rgba(244, 67, 54, 0.15); color: var(--red); }
+
+.danger { color: var(--red); }
+
+.no-data {
+  text-align: center;
+  padding: 32px;
+  opacity: 0.5;
+}

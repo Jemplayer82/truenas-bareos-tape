@@ -1,0 +1,30 @@
+Job {
+  Name = "{{ job.name }}"
+  Type = Backup
+  Level = {{ job.level }}
+  Client = "bareos-fd"
+  FileSet = "{{ job.name }}"
+{% if job.schedule %}
+  Schedule = "{{ job.schedule }}"
+{% else %}
+  Schedule = "TapeSchedule"
+{% endif %}
+  Storage = "TapeStorage"
+  Messages = "Standard"
+  Pool = "{{ job.pool }}"
+  Full Backup Pool = "{{ job.full_pool }}"
+  Differential Backup Pool = "{{ job.differential_pool }}"
+  Incremental Backup Pool = "{{ job.incremental_pool }}"
+  Priority = {{ job.priority }}
+  Maximum Concurrent Jobs = {{ job.max_concurrent_jobs }}
+  Write Bootstrap = "/var/lib/bareos/%c.bsr"
+{% if job.pre_script %}
+  Client Run Before Job = "{{ job.pre_script }}"
+{% endif %}
+{% if job.post_script %}
+  Client Run After Job = "{{ job.post_script }}"
+{% endif %}
+{% if not job.enabled %}
+  Enabled = no
+{% endif %}
+}

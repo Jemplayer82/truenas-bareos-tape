@@ -1,0 +1,14 @@
+Storage {
+  Name = "TapeStorage"
+  Address = "{{ hostname }}"
+  SD Port = 9103
+  Password = "{{ sd_password }}"
+{% if use_autochanger %}
+  Device = "TapeChanger"
+  Auto Changer = yes
+{% elif drives %}
+  Device = "TapeDrive-0"
+  Auto Changer = no
+{% endif %}
+  Media Type = "{{ media_type }}"
+}

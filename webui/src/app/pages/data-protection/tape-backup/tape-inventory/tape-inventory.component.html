@@ -1,0 +1,174 @@
+<ix-page-header>
+  <ix-page-title>{{ 'Tape Inventory' | translate }}</ix-page-title>
+  <button mat-raised-button color="primary" (click)="openLabelForm()">
+    <mat-icon>label</mat-icon>
+    {{ 'Label New Tape' | translate }}
+  </button>
+</ix-page-header>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+} @else {
+  <!-- Pool Summary Cards -->
+  @if (pools().length > 0) {
+    <div class="pool-cards">
+      @for (pool of pools(); track pool.name) {
+        <mat-card class="pool-card">
+          <mat-card-header>
+            <mat-card-title>{{ pool.name }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="pool-stats">
+              <div class="stat">
+                <span class="stat-value">{{ pool.num_volumes }}</span>
+                <span class="stat-label">{{ 'Volumes' | translate }}</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{{ formatBytes(pool.total_bytes) }}</span>
+                <span class="stat-label">{{ 'Total Size' | translate }}</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{{ pool.volume_retention || 'N/A' }}</span>
+                <span class="stat-label">{{ 'Retention' | translate }}</span>
+              </div>
+            </div>
+            <div class="pool-flags">
+              @if (pool.recycle) {
+                <span class="flag">{{ 'Recycle' | translate }}</span>
+              }
+              @if (pool.auto_prune) {
+                <span class="flag">{{ 'Auto Prune' | translate }}</span>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+
+  <!-- Label New Tape Form -->
+  @if (showLabelForm()) {
+    <mat-card class="label-card">
+      <mat-card-header>
+        <mat-card-title>{{ 'Label New Tape' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="labelForm" class="label-form">
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Volume Name' | translate }}</mat-label>
+            <input matInput formControlName="volume_name"
+                   placeholder="DailyBackup-001">
+            @if (labelForm.get('volume_name')?.hasError('required')) {
+              <mat-error>{{ 'Volume name is required' | translate }}</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Pool' | translate }}</mat-label>
+            <mat-select formControlName="pool">
+              @for (name of poolNames; track name) {
+                <mat-option [value]="name">{{ name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Slot (0 for standalone)' | translate }}</mat-label>
+            <input matInput type="number" formControlName="slot" min="0">
+          </mat-form-field>
+        </form>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button (click)="closeLabelForm()">{{ 'Cancel' | translate }}</button>
+        <button mat-raised-button color="primary"
+                [disabled]="labelForm.invalid || labeling()"
+                (click)="labelTape()">
+          @if (labeling()) {
+            <mat-spinner diameter="20"></mat-spinner>
+          } @else {
+            {{ 'Label Tape' | translate }}
+          }
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  }
+
+  <!-- Volume Table -->
+  <mat-card class="volume-card">
+    <mat-card-header>
+      <mat-card-title>{{ 'Volumes' | translate }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (volumes().length > 0) {
+        <table mat-table [dataSource]="volumes()" class="volume-table">
+
+          <ng-container matColumnDef="volume_name">
+            <th mat-header-cell *matHeaderCellDef>{{ 'Name' | translate }}</th>
+            <td mat-cell *matCellDef="let vol">
+              <span class="mono">{{ vol.volume_name }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="pool">
+            <th mat-header-cell *matHeaderCellDef>{{ 'Pool' | translate }}</th>
+            <td mat-cell *matCellDef="let vol">{{ vol.pool }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="volume_status">
+            <th mat-header-cell *matHeaderCellDef>{{ 'Status' | translate }}</th>
+            <td mat-cell *matCellDef="let vol">
+              <span class="volume-status" [ngClass]="getStatusClass(vol.volume_status)">
+                {{ vol.volume_status }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="volume_bytes">
+            <th mat-header-cell *matHeaderCellDef>{{ 'Size' | translate }}</th>
+            <td mat-cell *matCellDef="let vol">{{ formatBytes(vol.volume_bytes) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="volume_jobs">
+            <th mat-header-cell *matHeaderCellDef>{{ 'Jobs' | translate }}</th>
+            <td mat-cell *matCellDef="let vol">{{ vol.volume_jobs }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="last_written">
+            <th mat-header-cell *matHeaderCellDef>{{ 'Last Written' | translate }}</th>
+            <td mat-cell *matCellDef="let vol">{{ vol.last_written || '-' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let vol">
+              <button mat-icon-button [matMenuTriggerFor]="volMenu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #volMenu="matMenu">
+                @for (pool of poolNames; track pool) {
+                  @if (pool !== vol.pool) {
+                    <button mat-menu-item (click)="moveToPool(vol, pool)">
+                      <mat-icon>drive_file_move</mat-icon>
+                      <span>{{ 'Move to' | translate }} {{ pool }}</span>
+                    </button>
+                  }
+                }
+                <button mat-menu-item (click)="purgeVolume(vol)" class="danger">
+                  <mat-icon>delete_sweep</mat-icon>
+                  <span>{{ 'Purge' | translate }}</span>
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="volumeColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: volumeColumns;"></tr>
+        </table>
+      } @else {
+        <p class="no-data">{{ 'No volumes found. Label a tape to get started.' | translate }}</p>
+      }
+    </mat-card-content>
+  </mat-card>
+}

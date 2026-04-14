@@ -1,0 +1,23 @@
+FileSet {
+  Name = "{{ job.name }}"
+  Include {
+    Options {
+{% if job.signature %}
+      Signature = SHA256
+{% endif %}
+{% if job.compression and job.compression_algo != 'None' %}
+      Compression = {{ job.compression_algo }}
+{% endif %}
+    }
+{% for path in job.source_paths %}
+    File = "{{ path }}"
+{% endfor %}
+  }
+{% if job.exclude_patterns %}
+  Exclude {
+{% for pattern in job.exclude_patterns %}
+    File = "{{ pattern }}"
+{% endfor %}
+  }
+{% endif %}
+}

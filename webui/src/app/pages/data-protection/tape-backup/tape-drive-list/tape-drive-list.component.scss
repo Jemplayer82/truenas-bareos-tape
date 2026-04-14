@@ -1,0 +1,86 @@
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 64px 16px;
+  text-align: center;
+
+  .empty-icon {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    opacity: 0.3;
+    margin-bottom: 16px;
+  }
+}
+
+.drive-table {
+  width: 100%;
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.status-panel,
+.config-panel {
+  margin: 16px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .status-label {
+    font-weight: 500;
+    min-width: 100px;
+  }
+}
+
+.ok { color: var(--green); }
+.err { color: var(--red); }
+.warn { color: var(--orange); }
+
+.raw-status {
+  margin-top: 16px;
+
+  summary {
+    cursor: pointer;
+    opacity: 0.7;
+  }
+
+  pre {
+    background: var(--bg-hover);
+    padding: 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.85em;
+  }
+}
+
+.config-form {
+  max-width: 500px;
+
+  mat-form-field {
+    margin-bottom: 8px;
+  }
+}
+
+.full-width {
+  width: 100%;
+}

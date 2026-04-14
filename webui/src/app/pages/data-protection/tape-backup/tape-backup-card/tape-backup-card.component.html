@@ -1,0 +1,44 @@
+<mat-card class="tape-backup-summary-card" (click)="openDashboard()">
+  <mat-card-header>
+    <mat-icon mat-card-avatar>archive</mat-icon>
+    <mat-card-title>{{ 'Tape Backup' | translate }}</mat-card-title>
+    <mat-card-subtitle>
+      @if (!loaded()) {
+        {{ 'Loading...' | translate }}
+      } @else if (serviceRunning()) {
+        <span class="status-running">{{ 'Running' | translate }}</span>
+      } @else {
+        <span class="status-stopped">{{ 'Stopped' | translate }}</span>
+      }
+    </mat-card-subtitle>
+  </mat-card-header>
+
+  @if (loaded()) {
+    <mat-card-content>
+      <div class="summary-stats">
+        <div class="stat-item">
+          <mat-icon>save</mat-icon>
+          <span>{{ driveCount() }} {{ (driveCount() === 1 ? 'drive' : 'drives') | translate }}</span>
+        </div>
+
+        @if (lastBackup()) {
+          <div class="stat-item">
+            <mat-icon>schedule</mat-icon>
+            <span>{{ 'Last:' | translate }} {{ lastBackup() }}</span>
+          </div>
+        }
+      </div>
+    </mat-card-content>
+
+    <mat-card-actions>
+      <button mat-button (click)="navigateTo('jobs/create'); $event.stopPropagation()">
+        <mat-icon>add</mat-icon>
+        {{ 'New Job' | translate }}
+      </button>
+      <button mat-button (click)="navigateTo('restore'); $event.stopPropagation()">
+        <mat-icon>restore</mat-icon>
+        {{ 'Restore' | translate }}
+      </button>
+    </mat-card-actions>
+  }
+</mat-card>

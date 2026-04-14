@@ -1,0 +1,101 @@
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.restore-wizard {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.job-select-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.job-option {
+  display: flex;
+  flex-direction: column;
+
+  .job-option-name {
+    font-weight: 500;
+  }
+
+  .job-option-meta {
+    font-size: 0.85em;
+    opacity: 0.6;
+  }
+}
+
+.restore-all-check {
+  margin-bottom: 16px;
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.step-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.confirm-summary {
+  background: var(--bg-hover);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.confirm-row {
+  display: flex;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--lines);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .confirm-label {
+    font-weight: 500;
+    min-width: 140px;
+    opacity: 0.8;
+  }
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.result-card {
+  margin: 16px 0;
+
+  mat-card-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  &.result-success {
+    border-left: 4px solid var(--green);
+    mat-icon { color: var(--green); }
+  }
+
+  &.result-error {
+    border-left: 4px solid var(--red);
+    mat-icon { color: var(--red); }
+  }
+}
+
+.no-data {
+  text-align: center;
+  padding: 32px;
+  opacity: 0.5;
+}

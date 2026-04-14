@@ -1,0 +1,199 @@
+<ix-page-header>
+  <ix-page-title>{{ 'Tape Backup' | translate }}</ix-page-title>
+</ix-page-header>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+} @else {
+  <div class="dashboard-grid">
+
+    <!-- Service Status Card -->
+    <mat-card class="dashboard-card service-card">
+      <mat-card-header>
+        <mat-card-title>{{ 'Bareos Services' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (bareosStatus(); as status) {
+          <div class="service-list">
+            @for (entry of [
+              { label: 'Director', info: status.director },
+              { label: 'Storage Daemon', info: status.storage },
+              { label: 'File Daemon', info: status.filedaemon }
+            ]; track entry.label) {
+              <div class="service-row">
+                <mat-icon [class]="entry.info.running ? 'service-running' : 'service-stopped'">
+                  {{ entry.info.running ? 'check_circle' : 'cancel' }}
+                </mat-icon>
+                <span class="service-name">{{ entry.label }}</span>
+                <span class="service-state">{{ entry.info.state }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <p>{{ 'Bareos is not configured. Run initial setup to get started.' | translate }}</p>
+        }
+      </mat-card-content>
+      <mat-card-actions>
+        @if (bareosStatus()) {
+          <button mat-raised-button
+                  [color]="allServicesRunning ? 'warn' : 'primary'"
+                  [disabled]="serviceToggling()"
+                  (click)="toggleServices()">
+            @if (serviceToggling()) {
+              <mat-spinner diameter="20"></mat-spinner>
+            } @else {
+              {{ allServicesRunning ? ('Stop Services' | translate) : ('Start Services' | translate) }}
+            }
+          </button>
+        } @else {
+          <button mat-raised-button color="primary" (click)="runSetup()">
+            {{ 'Run Initial Setup' | translate }}
+          </button>
+        }
+      </mat-card-actions>
+    </mat-card>
+
+    <!-- Tape Drives Card -->
+    <mat-card class="dashboard-card drives-card">
+      <mat-card-header>
+        <mat-card-title>{{ 'Tape Drives' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (tapeDrives().length > 0) {
+          @for (drive of tapeDrives(); track drive.device) {
+            <div class="drive-row">
+              <mat-icon>{{ drive.type === 'tape' ? 'save' : 'swap_horiz' }}</mat-icon>
+              <div class="drive-info">
+                <span class="drive-model">{{ drive.vendor }} {{ drive.model }}</span>
+                <span class="drive-device">{{ drive.nst_device || drive.device }}</span>
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="no-data">{{ 'No tape drives detected' | translate }}</p>
+        }
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button (click)="navigateTo('drives')">
+          {{ 'Manage Drives' | translate }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <!-- Pool Summary Card -->
+    <mat-card class="dashboard-card pools-card">
+      <mat-card-header>
+        <mat-card-title>{{ 'Storage Pools' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (pools().length > 0) {
+          <div class="pool-grid">
+            @for (pool of pools(); track pool.name) {
+              <div class="pool-item">
+                <span class="pool-name">{{ pool.name }}</span>
+                <span class="pool-volumes">{{ pool.num_volumes }} {{ 'volumes' | translate }}</span>
+                <span class="pool-size">{{ formatBytes(pool.total_bytes) }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="no-data">{{ 'No pools configured' | translate }}</p>
+        }
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button (click)="navigateTo('inventory')">
+          {{ 'Manage Inventory' | translate }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <!-- Quick Actions Card -->
+    <mat-card class="dashboard-card actions-card">
+      <mat-card-header>
+        <mat-card-title>{{ 'Quick Actions' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="action-buttons">
+          <button mat-raised-button color="primary" (click)="navigateTo('jobs/create')">
+            <mat-icon>add</mat-icon>
+            {{ 'New Backup Job' | translate }}
+          </button>
+          <button mat-raised-button (click)="navigateTo('restore')">
+            <mat-icon>restore</mat-icon>
+            {{ 'Restore from Tape' | translate }}
+          </button>
+          <button mat-raised-button (click)="navigateTo('inventory')">
+            <mat-icon>label</mat-icon>
+            {{ 'Label New Tape' | translate }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Recent Jobs Table -->
+    <mat-card class="dashboard-card jobs-card full-width">
+      <mat-card-header>
+        <mat-card-title>{{ 'Recent Jobs' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (recentJobs().length > 0) {
+          <table mat-table [dataSource]="recentJobs()" class="jobs-table">
+
+            <ng-container matColumnDef="jobid">
+              <th mat-header-cell *matHeaderCellDef>{{ 'ID' | translate }}</th>
+              <td mat-cell *matCellDef="let job">{{ job.jobid }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>{{ 'Name' | translate }}</th>
+              <td mat-cell *matCellDef="let job">{{ job.name }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="level">
+              <th mat-header-cell *matHeaderCellDef>{{ 'Level' | translate }}</th>
+              <td mat-cell *matCellDef="let job">{{ job.level }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="job_status">
+              <th mat-header-cell *matHeaderCellDef>{{ 'Status' | translate }}</th>
+              <td mat-cell *matCellDef="let job">
+                <mat-icon [class]="getStatusClass(job.job_status)"
+                          [matTooltip]="job.job_status">
+                  {{ getStatusIcon(job.job_status) }}
+                </mat-icon>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="start_time">
+              <th mat-header-cell *matHeaderCellDef>{{ 'Started' | translate }}</th>
+              <td mat-cell *matCellDef="let job">{{ job.start_time }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="job_bytes">
+              <th mat-header-cell *matHeaderCellDef>{{ 'Size' | translate }}</th>
+              <td mat-cell *matCellDef="let job">{{ formatBytes(job.job_bytes) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="job_files">
+              <th mat-header-cell *matHeaderCellDef>{{ 'Files' | translate }}</th>
+              <td mat-cell *matCellDef="let job">{{ job.job_files }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="jobColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: jobColumns;"></tr>
+          </table>
+        } @else {
+          <p class="no-data">{{ 'No recent jobs' | translate }}</p>
+        }
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-button (click)="navigateTo('jobs')">
+          {{ 'View All Jobs' | translate }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+  </div>
+}

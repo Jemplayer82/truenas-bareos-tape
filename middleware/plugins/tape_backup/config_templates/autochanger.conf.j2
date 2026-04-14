@@ -1,0 +1,10 @@
+Autochanger {
+  Name = "TapeChanger"
+  Changer Device = "{{ changer_device }}"
+  Changer Command = "/usr/lib/bareos/scripts/mtx-changer %c %o %S %a %d"
+{% for drive in drives %}
+{% if drive.type == 'tape' or drive.get('nst_device') %}
+  Device = "TapeDrive-{{ loop.index0 }}"
+{% endif %}
+{% endfor %}
+}

@@ -1,0 +1,47 @@
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.job-form {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.form-section {
+  margin-bottom: 16px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+
+  mat-form-field {
+    flex: 1;
+  }
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+mat-card-content {
+  mat-form-field {
+    margin-bottom: 8px;
+  }
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 0;
+}

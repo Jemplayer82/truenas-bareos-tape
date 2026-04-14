@@ -1,0 +1,189 @@
+<ix-page-header>
+  <ix-page-title>{{ 'Tape Drives' | translate }}</ix-page-title>
+  <button mat-raised-button (click)="loadDrives()">
+    <mat-icon>refresh</mat-icon>
+    {{ 'Rescan' | translate }}
+  </button>
+</ix-page-header>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+} @else if (drives().length === 0) {
+  <div class="empty-state">
+    <mat-icon class="empty-icon">usb_off</mat-icon>
+    <h3>{{ 'No Tape Drives Detected' | translate }}</h3>
+    <p>{{ 'Connect a SCSI/SAS tape drive and click Rescan.' | translate }}</p>
+  </div>
+} @else {
+  <!-- Drive Table -->
+  <mat-card>
+    <table mat-table [dataSource]="drives()" class="drive-table">
+
+      <ng-container matColumnDef="type">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Type' | translate }}</th>
+        <td mat-cell *matCellDef="let drive">
+          <mat-icon [matTooltip]="drive.type">
+            {{ drive.type === 'tape' ? 'save' : 'swap_horiz' }}
+          </mat-icon>
+          {{ drive.type === 'tape' ? 'Tape Drive' : 'Changer' }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="vendor">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Vendor' | translate }}</th>
+        <td mat-cell *matCellDef="let drive">{{ drive.vendor }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="model">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Model' | translate }}</th>
+        <td mat-cell *matCellDef="let drive">{{ drive.model }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="device">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Device' | translate }}</th>
+        <td mat-cell *matCellDef="let drive">
+          <span class="mono">{{ drive.nst_device || drive.sg_device || drive.device }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let drive">
+          @if (drive.type === 'tape') {
+            <button mat-icon-button matTooltip="Status" (click)="viewStatus(drive)">
+              <mat-icon>info</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Configure" (click)="openConfigure(drive)">
+              <mat-icon>settings</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Rewind"
+                    [disabled]="actionInProgress() !== null"
+                    (click)="rewindTape(drive)">
+              <mat-icon>fast_rewind</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Eject"
+                    [disabled]="actionInProgress() !== null"
+                    (click)="ejectTape(drive)">
+              <mat-icon>eject</mat-icon>
+            </button>
+          }
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="driveColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: driveColumns;"></tr>
+    </table>
+  </mat-card>
+}
+
+<!-- Drive Status Panel -->
+@if (selectedDrive(); as drive) {
+  <mat-card class="status-panel">
+    <mat-card-header>
+      <mat-card-title>
+        {{ drive.vendor }} {{ drive.model }} — {{ drive.nst_device || drive.device }}
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (statusLoading()) {
+        <mat-spinner diameter="24"></mat-spinner>
+      } @else if (driveStatus(); as status) {
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="status-label">{{ 'Online' | translate }}</span>
+            <mat-icon [class]="status.online ? 'ok' : 'err'">
+              {{ status.online ? 'check' : 'close' }}
+            </mat-icon>
+          </div>
+          <div class="status-item">
+            <span class="status-label">{{ 'Tape Loaded' | translate }}</span>
+            <mat-icon [class]="status.tape_loaded ? 'ok' : 'err'">
+              {{ status.tape_loaded ? 'check' : 'close' }}
+            </mat-icon>
+          </div>
+          <div class="status-item">
+            <span class="status-label">{{ 'Write Protected' | translate }}</span>
+            <mat-icon [class]="status.write_protected ? 'warn' : 'ok'">
+              {{ status.write_protected ? 'lock' : 'lock_open' }}
+            </mat-icon>
+          </div>
+          <div class="status-item">
+            <span class="status-label">{{ 'Block Size' | translate }}</span>
+            <span>{{ status.block_size }} {{ 'bytes' | translate }}</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">{{ 'File #' | translate }}</span>
+            <span>{{ status.file_number }}</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">{{ 'Block #' | translate }}</span>
+            <span>{{ status.block_number }}</span>
+          </div>
+          @if (status.density) {
+            <div class="status-item">
+              <span class="status-label">{{ 'Density' | translate }}</span>
+              <span class="mono">{{ status.density }}</span>
+            </div>
+          }
+        </div>
+        @if (status.raw_status) {
+          <details class="raw-status">
+            <summary>{{ 'Raw Status Output' | translate }}</summary>
+            <pre>{{ status.raw_status }}</pre>
+          </details>
+        }
+      }
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-button (click)="closeStatus()">{{ 'Close' | translate }}</button>
+    </mat-card-actions>
+  </mat-card>
+}
+
+<!-- Configure Drive Panel -->
+@if (configuring()) {
+  <mat-card class="config-panel">
+    <mat-card-header>
+      <mat-card-title>{{ 'Configure Tape Drive' | translate }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="configForm" class="config-form">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Device Path (no-rewind)' | translate }}</mat-label>
+          <input matInput formControlName="nst_device" readonly>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Media Type' | translate }}</mat-label>
+          <mat-select formControlName="media_type">
+            @for (opt of mediaTypeOptions; track opt.value) {
+              <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Max Block Size (bytes)' | translate }}</mat-label>
+          <input matInput type="number" formControlName="max_block_size">
+          <mat-hint>{{ '1048576 (1 MB) recommended for LTO drives' | translate }}</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Drive Index' | translate }}</mat-label>
+          <input matInput type="number" formControlName="drive_index" min="0">
+          <mat-hint>{{ '0 for standalone drives' | translate }}</mat-hint>
+        </mat-form-field>
+      </form>
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-button (click)="cancelConfigure()">{{ 'Cancel' | translate }}</button>
+      <button mat-raised-button color="primary"
+              [disabled]="configForm.invalid"
+              (click)="saveConfigure()">
+        {{ 'Save Configuration' | translate }}
+      </button>
+    </mat-card-actions>
+  </mat-card>
+}

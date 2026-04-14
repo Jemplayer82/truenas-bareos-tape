@@ -1,0 +1,206 @@
+<ix-page-header>
+  <ix-page-title>
+    {{ (isEdit() ? 'Edit Tape Backup Job' : 'Create Tape Backup Job') | translate }}
+  </ix-page-title>
+</ix-page-header>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+} @else {
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="job-form">
+
+    <!-- Source Configuration -->
+    <mat-card class="form-section">
+      <mat-card-header>
+        <mat-card-title>{{ 'Source' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Job Name' | translate }}</mat-label>
+          <input matInput formControlName="name" placeholder="my-backup-job">
+          @if (form.get('name')?.hasError('required')) {
+            <mat-error>{{ 'Name is required' | translate }}</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Description' | translate }}</mat-label>
+          <input matInput formControlName="description" placeholder="Optional description">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Source Paths (one per line)' | translate }}</mat-label>
+          <textarea matInput formControlName="source_paths" rows="4"
+                    placeholder="/mnt/pool/dataset&#10;/mnt/pool/photos"></textarea>
+          @if (form.get('source_paths')?.hasError('required')) {
+            <mat-error>{{ 'At least one source path is required' | translate }}</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Exclude Patterns (comma-separated)' | translate }}</mat-label>
+          <input matInput formControlName="exclude_patterns"
+                 placeholder="*.tmp, *.swp, .Trash*">
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Schedule & Level -->
+    <mat-card class="form-section">
+      <mat-card-header>
+        <mat-card-title>{{ 'Schedule' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Default Backup Level' | translate }}</mat-label>
+            <mat-select formControlName="level">
+              @for (opt of levelOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Custom Schedule Name' | translate }}</mat-label>
+            <input matInput formControlName="schedule"
+                   placeholder="TapeSchedule (default)">
+            <mat-hint>{{ 'Leave empty to use default GFS rotation' | translate }}</mat-hint>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Pool Configuration -->
+    <mat-card class="form-section">
+      <mat-card-header>
+        <mat-card-title>{{ 'Destination Pools' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Default Pool' | translate }}</mat-label>
+            <mat-select formControlName="pool">
+              @for (opt of poolOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Full Backup Pool' | translate }}</mat-label>
+            <mat-select formControlName="full_pool">
+              @for (opt of poolOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Differential Pool' | translate }}</mat-label>
+            <mat-select formControlName="differential_pool">
+              @for (opt of poolOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Incremental Pool' | translate }}</mat-label>
+            <mat-select formControlName="incremental_pool">
+              @for (opt of poolOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Compression & Options -->
+    <mat-card class="form-section">
+      <mat-card-header>
+        <mat-card-title>{{ 'Options' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="checkbox-row">
+          <mat-checkbox formControlName="compression">
+            {{ 'Enable Compression' | translate }}
+          </mat-checkbox>
+          <mat-checkbox formControlName="signature">
+            {{ 'SHA-256 Signatures' | translate }}
+          </mat-checkbox>
+          <mat-checkbox formControlName="enabled">
+            {{ 'Enabled' | translate }}
+          </mat-checkbox>
+        </div>
+
+        @if (form.get('compression')?.value) {
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Compression Algorithm' | translate }}</mat-label>
+            <mat-select formControlName="compression_algo">
+              @for (opt of compressionOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+
+        <div class="form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Priority' | translate }}</mat-label>
+            <input matInput type="number" formControlName="priority" min="1" max="100">
+            <mat-hint>{{ 'Lower number = higher priority' | translate }}</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ 'Max Concurrent Jobs' | translate }}</mat-label>
+            <input matInput type="number" formControlName="max_concurrent_jobs" min="1" max="10">
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Advanced: Pre/Post Scripts -->
+    <mat-card class="form-section">
+      <mat-card-header>
+        <mat-card-title>{{ 'Advanced' | translate }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Pre-Backup Script' | translate }}</mat-label>
+          <input matInput formControlName="pre_script"
+                 placeholder="/usr/local/bin/pre-backup.sh">
+          <mat-hint>{{ 'Runs on client before backup starts' | translate }}</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'Post-Backup Script' | translate }}</mat-label>
+          <input matInput formControlName="post_script"
+                 placeholder="/usr/local/bin/post-backup.sh">
+          <mat-hint>{{ 'Runs on client after backup completes' | translate }}</mat-hint>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Actions -->
+    <div class="form-actions">
+      <button mat-button type="button" (click)="onCancel()">
+        {{ 'Cancel' | translate }}
+      </button>
+      <button mat-raised-button color="primary" type="submit"
+              [disabled]="form.invalid || saving()">
+        @if (saving()) {
+          <mat-spinner diameter="20"></mat-spinner>
+        } @else {
+          {{ (isEdit() ? 'Update Job' : 'Create Job') | translate }}
+        }
+      </button>
+    </div>
+
+  </form>
+}

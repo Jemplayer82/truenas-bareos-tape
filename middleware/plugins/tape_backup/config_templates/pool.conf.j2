@@ -1,0 +1,45 @@
+{% set pool_config = {
+  'Daily': {
+    'type': 'Backup',
+    'retention': '7 days',
+    'label': 'Daily-',
+    'recycle': 'yes',
+    'auto_prune': 'yes',
+  },
+  'Weekly': {
+    'type': 'Backup',
+    'retention': '5 weeks',
+    'label': 'Weekly-',
+    'recycle': 'yes',
+    'auto_prune': 'yes',
+  },
+  'Monthly': {
+    'type': 'Backup',
+    'retention': '12 months',
+    'label': 'Monthly-',
+    'recycle': 'yes',
+    'auto_prune': 'yes',
+  },
+  'Scratch': {
+    'type': 'Backup',
+    'retention': '0',
+    'label': 'Scratch-',
+    'recycle': 'yes',
+    'auto_prune': 'yes',
+  },
+} %}
+{% set cfg = pool_config.get(pool_name, pool_config['Daily']) %}
+Pool {
+  Name = "{{ pool_name }}"
+  Pool Type = "{{ cfg.type }}"
+  Recycle = {{ cfg.recycle }}
+  Auto Prune = {{ cfg.auto_prune }}
+{% if pool_name != 'Scratch' %}
+  Volume Retention = {{ cfg.retention }}
+  Maximum Volume Bytes = {{ max_volume_bytes }}
+{% endif %}
+  Label Format = "{{ cfg.label }}"
+{% if pool_name == 'Scratch' %}
+  Recycle Pool = "Scratch"
+{% endif %}
+}

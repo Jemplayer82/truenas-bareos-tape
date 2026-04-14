@@ -1,0 +1,10 @@
+Client {
+  Name = "bareos-fd"
+  Address = "{{ hostname }}"
+  FD Port = 9102
+  Password = "{{ fd_password }}"
+  Catalog = "MyCatalog"
+  File Retention = 60 days
+  Job Retention = 180 days
+  Auto Prune = yes
+}

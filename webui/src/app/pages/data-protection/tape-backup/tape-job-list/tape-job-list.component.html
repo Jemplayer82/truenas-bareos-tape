@@ -1,0 +1,99 @@
+<ix-page-header>
+  <ix-page-title>{{ 'Tape Backup Jobs' | translate }}</ix-page-title>
+  <button mat-raised-button color="primary" (click)="createJob()">
+    <mat-icon>add</mat-icon>
+    {{ 'Add Job' | translate }}
+  </button>
+</ix-page-header>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+} @else if (jobs().length === 0) {
+  <div class="empty-state">
+    <mat-icon class="empty-icon">content_paste_off</mat-icon>
+    <h3>{{ 'No Tape Backup Jobs' | translate }}</h3>
+    <p>{{ 'Create a backup job to start archiving data to tape.' | translate }}</p>
+    <button mat-raised-button color="primary" (click)="createJob()">
+      {{ 'Create First Job' | translate }}
+    </button>
+  </div>
+} @else {
+  <mat-card>
+    <table mat-table [dataSource]="jobs()" class="job-table">
+
+      <ng-container matColumnDef="enabled">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let job">
+          <mat-icon
+            [class]="job.enabled ? 'enabled-icon' : 'disabled-icon'"
+            [matTooltip]="job.enabled ? 'Enabled' : 'Disabled'"
+            (click)="toggleEnabled(job)">
+            {{ job.enabled ? 'toggle_on' : 'toggle_off' }}
+          </mat-icon>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Name' | translate }}</th>
+        <td mat-cell *matCellDef="let job">
+          <span class="job-name">{{ job.name }}</span>
+          @if (job.description) {
+            <span class="job-desc">{{ job.description }}</span>
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="source_paths">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Source' | translate }}</th>
+        <td mat-cell *matCellDef="let job" [matTooltip]="job.source_paths?.join('\n')">
+          <span class="mono">{{ formatPaths(job.source_paths) }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="level">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Level' | translate }}</th>
+        <td mat-cell *matCellDef="let job">{{ job.level }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="pool">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Pool' | translate }}</th>
+        <td mat-cell *matCellDef="let job">{{ job.pool }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="schedule">
+        <th mat-header-cell *matHeaderCellDef>{{ 'Schedule' | translate }}</th>
+        <td mat-cell *matCellDef="let job">
+          {{ job.schedule || ('TapeSchedule (default)' | translate) }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let job">
+          <button mat-icon-button [matMenuTriggerFor]="jobMenu">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #jobMenu="matMenu">
+            <button mat-menu-item (click)="runJob(job)" [disabled]="runningJobId() === job.id">
+              <mat-icon>play_arrow</mat-icon>
+              <span>{{ 'Run Now' | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="editJob(job)">
+              <mat-icon>edit</mat-icon>
+              <span>{{ 'Edit' | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="deleteJob(job)" class="delete-action">
+              <mat-icon>delete</mat-icon>
+              <span>{{ 'Delete' | translate }}</span>
+            </button>
+          </mat-menu>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  </mat-card>
+}

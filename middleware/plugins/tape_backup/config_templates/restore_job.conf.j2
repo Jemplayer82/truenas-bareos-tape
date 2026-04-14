@@ -1,0 +1,10 @@
+Job {
+  Name = "RestoreFiles"
+  Type = Restore
+  Client = "bareos-fd"
+  FileSet = "LinuxAll"
+  Storage = "TapeStorage"
+  Pool = "Daily"
+  Messages = "Standard"
+  Where = "/tmp/bareos-restores"
+}

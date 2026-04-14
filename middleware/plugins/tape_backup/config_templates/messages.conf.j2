@@ -1,0 +1,10 @@
+Messages {
+  Name = "Standard"
+  Director = "{{ dir_name }}" = all, !skipped, !restored
+{% if admin_email %}
+  Mail = "{{ admin_email }}" = all, !skipped
+{% endif %}
+  Append = "/var/log/bareos/bareos.log" = all, !skipped
+  Catalog = all
+  Console = all, !skipped, !saved
+}

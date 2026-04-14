@@ -1,0 +1,30 @@
+Device {
+  Name = "TapeDrive-{{ drive_index }}"
+  Archive Device = "{{ drive.nst_device }}"
+  Device Type = Tape
+  Media Type = "{{ drive.get('media_type', media_type) }}"
+{% if use_autochanger %}
+  Autochanger = yes
+  Drive Index = {{ drive_index }}
+  Changer Device = "{{ changer_device }}"
+  Changer Command = "/usr/lib/bareos/scripts/mtx-changer %c %o %S %a %d"
+{% else %}
+  Autochanger = no
+{% endif %}
+  Auto Select = yes
+  Maximum Block Size = {{ drive.get('max_block_size', 1048576) }}
+  Label Media = yes
+  Random Access = no
+  Automatic Mount = yes
+  Removable Media = yes
+  Always Open = yes
+  Hardware End Of Medium = yes
+  Forward Space Record = yes
+  Forward Space File = yes
+  Backward Space Record = yes
+  Backward Space File = yes
+  Fast Forward Space File = yes
+  Two EOF = no
+  Maximum Rewind Wait = 300
+  Maximum Open Wait = 300
+}

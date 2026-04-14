@@ -1,0 +1,177 @@
+<ix-page-header>
+  <ix-page-title>{{ 'Restore from Tape' | translate }}</ix-page-title>
+</ix-page-header>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+} @else {
+  <div class="restore-wizard">
+    <mat-stepper linear #stepper>
+
+      <!-- Step 1: Select Backup -->
+      <mat-step [stepControl]="selectForm" label="{{ 'Select Backup' | translate }}">
+        <form [formGroup]="selectForm">
+          <h3>{{ 'Select a completed backup job to restore from:' | translate }}</h3>
+
+          @if (recentJobs().length > 0) {
+            <mat-selection-list [multiple]="false" class="job-select-list">
+              @for (job of recentJobs(); track job.jobid) {
+                <mat-list-option
+                  [value]="job.jobid"
+                  [selected]="selectForm.get('selectedJobId')?.value === job.jobid"
+                  (click)="selectForm.patchValue({ selectedJobId: job.jobid })">
+                  <div class="job-option">
+                    <span class="job-option-name">{{ job.name }}</span>
+                    <span class="job-option-meta">
+                      {{ job.level }} | {{ job.start_time }} |
+                      {{ formatBytes(job.job_bytes) }} | {{ job.job_files }} files
+                    </span>
+                  </div>
+                </mat-list-option>
+              }
+            </mat-selection-list>
+          } @else {
+            <p class="no-data">{{ 'No completed backup jobs found.' | translate }}</p>
+          }
+
+          <div class="step-actions">
+            <button mat-raised-button color="primary" matStepperNext
+                    [disabled]="selectForm.invalid">
+              {{ 'Next' | translate }}
+            </button>
+          </div>
+        </form>
+      </mat-step>
+
+      <!-- Step 2: Select Files -->
+      <mat-step [stepControl]="filesForm" label="{{ 'Select Files' | translate }}">
+        <form [formGroup]="filesForm">
+          <h3>{{ 'Choose which files to restore:' | translate }}</h3>
+
+          <mat-checkbox formControlName="restore_all" class="restore-all-check">
+            {{ 'Restore all files from this backup' | translate }}
+          </mat-checkbox>
+
+          @if (!filesForm.get('restore_all')?.value) {
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'File paths (one per line)' | translate }}</mat-label>
+              <textarea matInput formControlName="file_list" rows="8"
+                        placeholder="/mnt/pool/dataset/important-file.txt&#10;/mnt/pool/dataset/documents/"></textarea>
+              <mat-hint>{{ 'Enter full paths of files or directories to restore' | translate }}</mat-hint>
+            </mat-form-field>
+          }
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious>{{ 'Back' | translate }}</button>
+            <button mat-raised-button color="primary" matStepperNext>
+              {{ 'Next' | translate }}
+            </button>
+          </div>
+        </form>
+      </mat-step>
+
+      <!-- Step 3: Destination -->
+      <mat-step [stepControl]="destinationForm" label="{{ 'Destination' | translate }}">
+        <form [formGroup]="destinationForm">
+          <h3>{{ 'Configure restore destination:' | translate }}</h3>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'Restore Destination Path' | translate }}</mat-label>
+            <input matInput formControlName="destination"
+                   placeholder="/tmp/bareos-restores">
+            <mat-hint>{{ 'Files will be restored to this directory' | translate }}</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'File Replace Policy' | translate }}</mat-label>
+            <mat-select formControlName="replace">
+              @for (opt of replaceOptions; track opt.value) {
+                <mat-option [value]="opt.value">{{ opt.label | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <div class="step-actions">
+            <button mat-button matStepperPrevious>{{ 'Back' | translate }}</button>
+            <button mat-raised-button color="primary" matStepperNext>
+              {{ 'Next' | translate }}
+            </button>
+          </div>
+        </form>
+      </mat-step>
+
+      <!-- Step 4: Confirm & Run -->
+      <mat-step label="{{ 'Confirm' | translate }}">
+        <h3>{{ 'Review and start restore:' | translate }}</h3>
+
+        @if (selectedJob; as job) {
+          <div class="confirm-summary">
+            <div class="confirm-row">
+              <span class="confirm-label">{{ 'Source Job' | translate }}</span>
+              <span>{{ job.name }} (ID: {{ job.jobid }})</span>
+            </div>
+            <div class="confirm-row">
+              <span class="confirm-label">{{ 'Backup Date' | translate }}</span>
+              <span>{{ job.start_time }}</span>
+            </div>
+            <div class="confirm-row">
+              <span class="confirm-label">{{ 'Size' | translate }}</span>
+              <span>{{ formatBytes(job.job_bytes) }} ({{ job.job_files }} files)</span>
+            </div>
+            <div class="confirm-row">
+              <span class="confirm-label">{{ 'Restore Scope' | translate }}</span>
+              <span>
+                {{ filesForm.get('restore_all')?.value
+                  ? ('All files' | translate)
+                  : ('Selected files' | translate) }}
+              </span>
+            </div>
+            <div class="confirm-row">
+              <span class="confirm-label">{{ 'Destination' | translate }}</span>
+              <span class="mono">{{ destinationForm.get('destination')?.value }}</span>
+            </div>
+            <div class="confirm-row">
+              <span class="confirm-label">{{ 'Replace Policy' | translate }}</span>
+              <span>{{ destinationForm.get('replace')?.value }}</span>
+            </div>
+          </div>
+        }
+
+        @if (restoreComplete()) {
+          <mat-card class="result-card" [ngClass]="restoreResult().includes('failed') ? 'result-error' : 'result-success'">
+            <mat-card-content>
+              <mat-icon>{{ restoreResult().includes('failed') ? 'error' : 'check_circle' }}</mat-icon>
+              <span>{{ restoreResult() }}</span>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <div class="step-actions">
+          <button mat-button matStepperPrevious [disabled]="restoring()">
+            {{ 'Back' | translate }}
+          </button>
+          @if (!restoreComplete()) {
+            <button mat-raised-button color="primary"
+                    [disabled]="restoring()"
+                    (click)="startRestore()">
+              @if (restoring()) {
+                <mat-spinner diameter="20"></mat-spinner>
+                {{ 'Restoring...' | translate }}
+              } @else {
+                <mat-icon>restore</mat-icon>
+                {{ 'Start Restore' | translate }}
+              }
+            </button>
+          } @else {
+            <button mat-raised-button color="primary" (click)="goToDashboard()">
+              {{ 'Back to Dashboard' | translate }}
+            </button>
+          }
+        </div>
+      </mat-step>
+
+    </mat-stepper>
+  </div>
+}
