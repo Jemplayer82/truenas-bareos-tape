@@ -22,10 +22,10 @@ BAREOS_LOG_DIR = '/mnt/bareos/logs'
 
 TEMPLATE_DIR = Path(__file__).parent / 'config_templates'
 
-# Container names — must match the TrueNAS app docker-compose template
+# Containers that run on TrueNAS (via the app).
+# Storage Daemon runs on the separate Linux tape server.
 CONTAINER_NAMES = {
     'director':   'bareos-dir',
-    'storage':    'bareos-sd',
     'filedaemon': 'bareos-fd',
     'database':   'bareos-db',
 }
@@ -215,8 +215,10 @@ class TapeBackupBareosService(Service):
             'use_autochanger': config.get('use_autochanger', False),
             'changer_device': config.get('changer_device', ''),
             'changer_slots': config.get('changer_slots', 24),
+            'nst_device': config.get('nst_device', '/dev/nst0'),
             'jobs': jobs_list,
-            'sd_address': CONTAINER_NAMES['storage'],
+            'sd_address': config.get('tape_server_address', ''),
+            'sd_port': config.get('tape_server_sd_port', 9103),
             'fd_address': CONTAINER_NAMES['filedaemon'],
             'admin_email': config.get('admin_email', ''),
         }

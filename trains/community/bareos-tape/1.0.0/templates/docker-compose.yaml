@@ -1,12 +1,12 @@
-{% set tape = values.tape %}
+{% set ts = values.tape_server %}
 {% set net = values.network %}
 {% set stor = values.storage %}
 {% set creds = values.credentials %}
 
-{% set dir_pw   = creds.dir_password   if creds.dir_password   else ix_lib.base.utils.secure_string(32) %}
-{% set sd_pw    = creds.sd_password    if creds.sd_password    else ix_lib.base.utils.secure_string(32) %}
-{% set fd_pw    = creds.fd_password    if creds.fd_password    else ix_lib.base.utils.secure_string(32) %}
-{% set db_pw    = creds.db_password    if creds.db_password    else ix_lib.base.utils.secure_string(32) %}
+{% set dir_pw = creds.dir_password if creds.dir_password else ix_lib.base.utils.secure_string(32) %}
+{% set sd_pw  = creds.sd_password  if creds.sd_password  else ix_lib.base.utils.secure_string(32) %}
+{% set fd_pw  = creds.fd_password  if creds.fd_password  else ix_lib.base.utils.secure_string(32) %}
+{% set db_pw  = creds.db_password  if creds.db_password  else ix_lib.base.utils.secure_string(32) %}
 
 name: bareos-tape
 
@@ -32,6 +32,7 @@ services:
       - bareos-net
 
   # ── Bareos Director ───────────────────────────────────────────────────────
+  # Storage Daemon runs on the separate Linux tape server, not here.
   bareos-dir:
     image: barcus/bareos-director:23-ubuntu
     container_name: bareos-dir
@@ -56,31 +57,7 @@ services:
     networks:
       - bareos-net
 
-  # ── Bareos Storage Daemon (tape access) ───────────────────────────────────
-  bareos-sd:
-    image: barcus/bareos-storage:23-ubuntu
-    container_name: bareos-sd
-    restart: unless-stopped
-    depends_on:
-      - bareos-dir
-    ports:
-      - "{{ net.sd_port }}:9103"
-    cap_add:
-      - SYS_RAWIO
-    devices:
-      - "{{ tape.nst_device }}:{{ tape.nst_device }}"
-      {% if tape.use_autochanger %}
-      - "{{ tape.changer_device }}:{{ tape.changer_device }}"
-      {% endif %}
-    environment:
-      BAREOS_SD_PASSWORD: "{{ sd_pw }}"
-    volumes:
-      - "{{ stor.bareos_config }}:/etc/bareos:ro"
-      - "{{ stor.bareos_storage }}:/var/lib/bareos/storage:rw"
-    networks:
-      - bareos-net
-
-  # ── Bareos File Daemon ─────────────────────────────────────────────────────
+  # ── Bareos File Daemon (backs up TrueNAS data) ────────────────────────────
   bareos-fd:
     image: barcus/bareos-client:23-ubuntu
     container_name: bareos-fd

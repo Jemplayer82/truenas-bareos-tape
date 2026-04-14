@@ -1,23 +1,38 @@
 groups:
-  - name: "Tape Device"
-    description: "Tape drive device configuration"
+  - name: "Tape Server"
+    description: "Linux machine with the FC/SAS tape drive attached"
   - name: "Network"
-    description: "Port configuration"
+    description: "Port configuration (on TrueNAS)"
   - name: "Storage"
     description: "Persistent storage for catalog database and configuration"
   - name: "Credentials"
     description: "Bareos daemon passwords"
 
 questions:
-  # ---------- Tape Device ----------
-  - variable: tape
-    group: "Tape Device"
+  # ---------- Tape Server ----------
+  - variable: tape_server
+    group: "Tape Server"
     schema:
       type: dict
       attrs:
+        - variable: address
+          label: "Tape Server Address"
+          description: "IP address or hostname of the Linux machine running the Bareos Storage Daemon and tape drive"
+          schema:
+            type: string
+            required: true
+
+        - variable: sd_port
+          label: "Storage Daemon Port (on tape server)"
+          schema:
+            type: int
+            default: 9103
+            min: 1024
+            max: 65535
+
         - variable: nst_device
-          label: "Tape Drive Device (no-rewind)"
-          description: "Path to the no-rewind SCSI tape device. Find it with: ls /dev/nst*"
+          label: "Tape Device Path (on tape server)"
+          description: "Path to the no-rewind tape device on the Linux tape server (e.g. /dev/nst0)"
           schema:
             type: string
             default: "/dev/nst0"
@@ -48,11 +63,11 @@ questions:
             show_subquestions_if: true
             subquestions:
               - variable: changer_device
-                label: "Changer Device"
-                description: "SCSI generic device for the tape changer (e.g. /dev/sg0)"
+                label: "Changer Device (on tape server)"
+                description: "SCSI generic device for the tape changer on the Linux tape server (e.g. /dev/sg1)"
                 schema:
                   type: string
-                  default: "/dev/sg0"
+                  default: "/dev/sg1"
               - variable: changer_slots
                 label: "Number of Slots"
                 schema:
@@ -68,18 +83,10 @@ questions:
       attrs:
         - variable: dir_port
           label: "Director Port"
-          description: "Must match what the TrueNAS middleware plugin expects (default 9101)"
+          description: "Bareos Director port on TrueNAS (default 9101)"
           schema:
             type: int
             default: 9101
-            min: 1024
-            max: 65535
-
-        - variable: sd_port
-          label: "Storage Daemon Port"
-          schema:
-            type: int
-            default: 9103
             min: 1024
             max: 65535
 
@@ -112,7 +119,7 @@ questions:
             required: true
 
         - variable: bareos_storage
-          label: "Tape Spool / Working Directory"
+          label: "Working Directory"
           schema:
             type: hostpath
             required: true
@@ -133,6 +140,7 @@ questions:
 
         - variable: sd_password
           label: "Storage Daemon Password"
+          description: "Must match the password you configure on the tape server"
           schema:
             type: string
             default: ""

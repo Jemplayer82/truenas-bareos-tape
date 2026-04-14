@@ -25,6 +25,9 @@ SQL_MIGRATIONS = [
         changer_device VARCHAR(255) DEFAULT '',
         changer_slots INTEGER DEFAULT 24,
         drives TEXT DEFAULT '[]',
+        tape_server_address VARCHAR(255) DEFAULT '',
+        tape_server_sd_port INTEGER DEFAULT 9103,
+        nst_device VARCHAR(255) DEFAULT '/dev/nst0',
         smtp_host VARCHAR(255) DEFAULT '',
         admin_email VARCHAR(255) DEFAULT '',
         initialized BOOLEAN DEFAULT 0
