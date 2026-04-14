@@ -9,7 +9,13 @@ set -euo pipefail
 
 GITHUB_REPO="https://github.com/Jemplayer82/truenas-bareos-tape"
 GITHUB_RAW="https://raw.githubusercontent.com/Jemplayer82/truenas-bareos-tape/main"
-INSTALL_DIR="${HOME}/truenas-bareos-tape"
+# Resolve the real home dir — handles both direct root and `sudo` invocation
+if [[ -n "${SUDO_USER:-}" ]]; then
+    REAL_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+else
+    REAL_HOME="$HOME"
+fi
+INSTALL_DIR="${REAL_HOME}/truenas-bareos-tape"
 MIDDLEWARE_PLUGIN_DIR="/usr/lib/python3/dist-packages/middlewared/plugins/tape_backup"
 BAREOS_REPO_KEY="https://download.bareos.org/current/xUbuntu_22.04/Release.key"
 BAREOS_REPO="deb https://download.bareos.org/current/xUbuntu_22.04/ /"

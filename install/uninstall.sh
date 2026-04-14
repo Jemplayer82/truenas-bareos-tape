@@ -3,7 +3,12 @@ set -euo pipefail
 
 # TrueNAS SCALE - Bareos Tape Archival Plugin Uninstaller
 
-INSTALL_DIR="${HOME}/truenas-bareos-tape"
+if [[ -n "${SUDO_USER:-}" ]]; then
+    REAL_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+else
+    REAL_HOME="$HOME"
+fi
+INSTALL_DIR="${REAL_HOME}/truenas-bareos-tape"
 MIDDLEWARE_PLUGIN_DIR="/usr/lib/python3/dist-packages/middlewared/plugins/tape_backup"
 
 RED='\033[0;31m'
