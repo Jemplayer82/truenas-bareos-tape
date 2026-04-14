@@ -9,7 +9,7 @@ set -euo pipefail
 
 GITHUB_REPO="https://github.com/Jemplayer82/truenas-bareos-tape"
 GITHUB_RAW="https://raw.githubusercontent.com/Jemplayer82/truenas-bareos-tape/main"
-INSTALL_DIR="/opt/truenas-bareos-tape"
+INSTALL_DIR="${HOME}/truenas-bareos-tape"
 MIDDLEWARE_PLUGIN_DIR="/usr/lib/python3/dist-packages/middlewared/plugins/tape_backup"
 BAREOS_REPO_KEY="https://download.bareos.org/current/xUbuntu_22.04/Release.key"
 BAREOS_REPO="deb https://download.bareos.org/current/xUbuntu_22.04/ /"

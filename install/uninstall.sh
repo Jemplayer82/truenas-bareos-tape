@@ -3,6 +3,7 @@ set -euo pipefail
 
 # TrueNAS SCALE - Bareos Tape Archival Plugin Uninstaller
 
+INSTALL_DIR="${HOME}/truenas-bareos-tape"
 MIDDLEWARE_PLUGIN_DIR="/usr/lib/python3/dist-packages/middlewared/plugins/tape_backup"
 
 RED='\033[0;31m'
@@ -56,6 +57,9 @@ log "  Bareos Tape Archival - Uninstall Complete"
 log "============================================"
 echo ""
 echo "  The middleware plugin has been removed."
+echo ""
+echo "  Plugin files remain at: $INSTALL_DIR"
+echo "  Remove manually with: rm -rf $INSTALL_DIR"
 echo ""
 echo "  The following are preserved (remove manually if desired):"
 echo "    - Bareos packages (apt remove bareos-*)"

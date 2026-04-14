@@ -147,7 +147,7 @@ install/
 ## Uninstall
 
 ```bash
-sudo /opt/truenas-bareos-tape/install/uninstall.sh
+sudo ~/truenas-bareos-tape/install/uninstall.sh
 ```
 
 Removes the middleware plugin and stops Bareos services. Bareos packages, configuration, and catalog database are preserved for manual cleanup.
