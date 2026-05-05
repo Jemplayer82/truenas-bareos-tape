@@ -1,0 +1,44 @@
+# Inventory for Fred's update stack. Copy to /etc/update/inventory.yaml.
+
+pve_host: localhost
+
+# Proxmox Backup Server config — used to auto-restore VMs/CTs that are still
+# unhealthy after an upgrade and a reboot retry.
+pbs:
+  storage: pbs01            # Proxmox storage id pointing at the PBS datastore
+  namespace: ""             # optional PBS namespace
+  min_age_minutes: 60       # never restore from an archive younger than this
+
+# TrueNAS SCALE — runs Docker containers. Recovery uses TrueNAS's own ZFS
+# periodic snapshots; Fred never creates snapshots.
+truenas:
+  host: truenas.lan
+  user: root
+  ssh_key: /root/.ssh/update_id_ed25519
+  remote_script: /usr/local/sbin/update-containers.sh
+  zfs_rollback:
+    enabled: true
+    datasets:
+      - tank/apps/ix-applications
+      - tank/apps/configs
+    min_age_minutes: 30
+    max_age_days: 7
+
+# Standalone webservers — OS-level apt/dnf upgrade over SSH.
+webservers:
+  - host: web1.lan
+    user: root
+    ssh_key: /root/.ssh/update_id_ed25519
+    pkg: apt
+
+# Proxmox LXC scope. Currently every running CT is updated; exclude_ids lets
+# you skip noisy or fragile ones.
+lxc:
+  include_all_running: true
+  exclude_ids: []
+
+# Proxmox VM scope.
+vms:
+  include_all_running: true
+  exclude_ids: []
+  prefer: guest_agent       # or: ssh

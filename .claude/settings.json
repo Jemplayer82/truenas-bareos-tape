@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo /usr/local/sbin/update-all.sh*)",
+      "Bash(sudo /usr/local/sbin/update-containers.sh*)",
+      "Bash(/usr/local/sbin/notify-email.sh*)",
+      "Bash(systemctl start update.*)",
+      "Bash(systemctl status update.*)",
+      "Bash(journalctl -u update.*)",
+      "Bash(docker *)",
+      "Bash(pct *)",
+      "Bash(qm *)",
+      "Bash(ssh *)",
+      "Read(/var/log/update/**)",
+      "Read(/var/lib/container-update/**)",
+      "Read(/etc/update/**)",
+      "Edit(/etc/update/**)"
+    ]
+  }
+}
